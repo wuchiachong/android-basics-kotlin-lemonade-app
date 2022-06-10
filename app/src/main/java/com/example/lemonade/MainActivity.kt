@@ -20,6 +20,7 @@ import android.os.Bundle
 import android.widget.ImageView
 import android.widget.TextView
 import com.google.android.material.snackbar.Snackbar
+import java.lang.Exception
 
 class MainActivity : AppCompatActivity() {
 
@@ -41,7 +42,7 @@ class MainActivity : AppCompatActivity() {
     // RESTART represents the state where the lemonade has been drunk and the glass is empty
     private val RESTART = "restart"
     // Default the state to select
-    private var lemonadeState = "select"
+    private var lemonadeState: LemonState = LemonState.SELECT
     // Default lemonSize to -1
     private var lemonSize = -1
     // Default the squeezeCount to -1
@@ -57,7 +58,7 @@ class MainActivity : AppCompatActivity() {
 
         // === DO NOT ALTER THE CODE IN THE FOLLOWING IF STATEMENT ===
         if (savedInstanceState != null) {
-            lemonadeState = savedInstanceState.getString(LEMONADE_STATE, "select")
+            lemonadeState = savedInstanceState.getSerializable(LEMONADE_STATE) as LemonState
             lemonSize = savedInstanceState.getInt(LEMON_SIZE, -1)
             squeezeCount = savedInstanceState.getInt(SQUEEZE_COUNT, -1)
         }
@@ -66,11 +67,10 @@ class MainActivity : AppCompatActivity() {
         lemonImage = findViewById(R.id.image_lemon_state)
         setViewElements()
         lemonImage!!.setOnClickListener {
-            // TODO: call the method that handles the state when the image is clicked
+            clickLemonImage()
         }
         lemonImage!!.setOnLongClickListener {
-            // TODO: replace 'false' with a call to the function that shows the squeeze count
-            false
+            showSnackbar()
         }
     }
 
@@ -80,7 +80,7 @@ class MainActivity : AppCompatActivity() {
      * This method saves the state of the app if it is put in the background.
      */
     override fun onSaveInstanceState(outState: Bundle) {
-        outState.putString(LEMONADE_STATE, lemonadeState)
+        outState.putSerializable(LEMONADE_STATE, lemonadeState)
         outState.putInt(LEMON_SIZE, lemonSize)
         outState.putInt(SQUEEZE_COUNT, squeezeCount)
         super.onSaveInstanceState(outState)
@@ -111,6 +111,19 @@ class MainActivity : AppCompatActivity() {
 
         // TODO: lastly, before the function terminates we need to set the view elements so that the
         //  UI can reflect the correct state
+        this.lemonadeState = this.lemonadeState.next(this.lemonSize)
+
+        val textAction: TextView = findViewById(R.id.text_action)
+        val imageView = findViewById<ImageView>(R.id.image_lemon_state)
+
+        this.lemonSize = lemonadeState.getLemonSize(this.lemonSize)
+
+        this.squeezeCount = lemonadeState.getSqueezeCount(this.squeezeCount)
+
+
+
+        textAction.text = getString(this.lemonadeState.getString())
+        imageView.setImageResource(this.lemonadeState.getImage())
     }
 
     /**
@@ -118,6 +131,18 @@ class MainActivity : AppCompatActivity() {
      */
     private fun setViewElements() {
         val textAction: TextView = findViewById(R.id.text_action)
+        val imageView = findViewById<ImageView>(R.id.image_lemon_state)
+
+        this.lemonSize = lemonadeState.getLemonSize(this.lemonSize)
+
+        this.squeezeCount = lemonadeState.getSqueezeCount(this.squeezeCount)
+
+
+
+        textAction.text = getString(this.lemonadeState.getString())
+        imageView.setImageResource(this.lemonadeState.getImage())
+
+
         // TODO: set up a conditional that tracks the lemonadeState
 
         // TODO: for each state, the textAction TextView should be set to the corresponding string from
@@ -134,7 +159,7 @@ class MainActivity : AppCompatActivity() {
      * Long clicking the lemon image will show how many times the lemon has been squeezed.
      */
     private fun showSnackbar(): Boolean {
-        if (lemonadeState != SQUEEZE) {
+        if (lemonadeState != LemonState.SQUEEZE) {
             return false
         }
         val squeezeText = getString(R.string.squeeze_count, squeezeCount)
@@ -155,4 +180,74 @@ class LemonTree {
     fun pick(): Int {
         return (2..4).random()
     }
+}
+
+enum class LemonState : State<LemonState>, Resource<Int, Int>, Count{
+    SELECT {
+        override fun next(lemonSize: Int): LemonState = SQUEEZE
+
+        override fun getImage() = R.drawable.lemon_tree
+
+        override fun getString() = R.string.lemon_select
+
+        override fun getSqueezeCount(currentSqueezeCount: Int) : Int {
+            return currentSqueezeCount
+        }
+
+        override fun getLemonSize(currentLemonSize: Int) : Int {
+            val lemonTree = LemonTree()
+            return lemonTree.pick()
+        }
+    }, SQUEEZE {
+        override fun next(lemonSize: Int) = if (lemonSize == 0) DRINK else this
+
+        override fun getImage() = R.drawable.lemon_squeeze
+
+        override fun getString() = R.string.lemon_squeeze
+
+        override fun getSqueezeCount(currentSqueezeCount: Int) : Int {
+           return currentSqueezeCount + 1
+        }
+
+        override fun getLemonSize(currentLemonSize: Int) : Int {
+            if (currentLemonSize <= 0) return 0
+            return currentLemonSize - 1
+        }
+    }, DRINK {
+        override fun next(lemonSize: Int) = RESTART
+
+        override fun getImage() = R.drawable.lemon_drink
+
+        override fun getString() =  R.string.lemon_drink
+
+        override fun getSqueezeCount(currentSqueezeCount: Int)  = currentSqueezeCount
+
+
+        override fun getLemonSize(currentLemonSize: Int) = -1
+
+    }, RESTART {
+        override fun next(lemonSize: Int) = SELECT
+
+        override fun getImage(): Int = R.drawable.lemon_restart
+
+        override fun getString() = R.string.lemon_empty_glass
+
+        override fun getSqueezeCount(currentSqueezeCount: Int) = currentSqueezeCount
+
+        override fun getLemonSize(currentLemonSize: Int) = currentLemonSize
+    }
+}
+
+interface State<T> {
+    fun next(lemonSize : Int): T
+}
+
+interface Resource<T, R> {
+    fun getImage() : T
+    fun getString(): R
+}
+
+interface Count {
+    fun getSqueezeCount(currentSqueezeCount: Int) : Int
+    fun getLemonSize(currentLemonSize : Int) : Int
 }
